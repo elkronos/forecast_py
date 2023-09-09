@@ -13,6 +13,11 @@ def train_test_split(df):
     train, test = df[0:train_size], df[train_size:len(df)]
     return train, test
 
+def make_data_stationary(data_frame):
+    data_frame['data_diff'] = data_frame['data'].diff()
+    data_frame.dropna(inplace=True)
+    return data_frame
+
 def create_features(data_frame):
     data_frame['year'] = data_frame.index.year
     data_frame['month'] = data_frame.index.month

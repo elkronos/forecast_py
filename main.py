@@ -1,4 +1,4 @@
-from data_preparation import generate_data, train_test_split, create_features
+from data_preparation import generate_data, train_test_split, create_features, make_data_stationary
 from model_training_and_prediction import (
     train_model, predict_model, 
     prophet_training_and_prediction, 
@@ -23,6 +23,7 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.arima.model import ARIMA
 from tbats import TBATS
 from pygam import LinearGAM
+from sklearn.model_selection import TimeSeriesSplit
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,9 @@ import pandas as pd
 def main():
     # Generate data
     data = generate_data()
+
+    # Make data stationary
+    data = make_data_stationary(data)
     
     # Create features
     data = create_features(data)
@@ -60,15 +64,24 @@ def main():
         "LinearGAM": LinearGAM(),
     }
 
-    # Train models, make predictions and calculate metrics
+    tscv = TimeSeriesSplit(n_splits=5)
+    
     results = {}
     ensemble_predictions = []
 
-    for model_name, model in models.items():
-        trained_model = train_model(model, X_train, y_train)
-        predictions = predict_model(trained_model, X_test)
-        results[model_name] = calculate_metrics(y_test, predictions)
-        ensemble_predictions.append(predictions)
+    for train_index, val_index in tscv.split(X_train):
+        X_train_cv, X_val_cv = X_train.iloc[train_index], X_train.iloc[val_index]
+        y_train_cv, y_val_cv = y_train.iloc[train_index], y_train.iloc[val_index]
+
+        for model_name, model in models.items():
+            trained_model = train_model(model, X_train_cv, y_train_cv)
+            predictions = predict_model(trained_model, X_val_cv)
+            results[model_name] = results.get(model_name, []) + [calculate_metrics(y_val_cv, predictions)]
+            ensemble_predictions.append(predictions)
+    
+    # Averaging cross-validation results for each model
+    for model_name in results:
+        results[model_name] = {metric: np.mean([res[metric] for res in results[model_name]]) for metric in results[model_name][0]}
     
     # Averaging predictions for ensembling
     ensemble_predictions = np.mean(ensemble_predictions, axis=0)

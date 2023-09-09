@@ -8,6 +8,22 @@ from statsmodels.tsa.arima.model import ARIMA
 from tbats import TBATS
 from pygam import LinearGAM
 from pmdarima import auto_arima
+from sklearn.model_selection import TimeSeriesSplit
+
+def cross_validate_model(model, X, y, n_splits=5):
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    cv_results = []
+
+    for train_index, test_index in tscv.split(X):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        metrics = calculate_metrics(y_test, predictions)
+        cv_results.append(metrics)
+
+    return cv_results
 
 def get_best_arima_order(train_data):
     best_model = auto_arima(train_data, seasonal=True, m=365, trace=False)
